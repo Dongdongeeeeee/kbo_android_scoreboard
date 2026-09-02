@@ -2,6 +2,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError, URLError
 from datetime import date, timedelta
 
 BASE = "https://www.koreabaseball.com/ws"
@@ -17,9 +18,17 @@ HEADERS = {
 def post(path, fields):
     body = urllib.parse.urlencode(fields).encode()
     request = urllib.request.Request(BASE + path, body, HEADERS, method="POST")
-    with urllib.request.urlopen(request, timeout=20) as response:
-        text = response.read().decode("utf-8-sig")
-    return json.loads(text)
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            text = response.read().decode("utf-8-sig").strip()
+    except (HTTPError, URLError, TimeoutError):
+        return None
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
 
 
 def unwrap(value):
@@ -44,6 +53,8 @@ def games_for(day):
         "leId": "1", "srId": "0,1,3,4,5,6,7,9",
         "date": day.strftime("%Y%m%d"),
     })
+    if root is None:
+        return []
     root = unwrap(root)
     if isinstance(root, dict):
         for key in ("d", "game", "Data", "data", "result"):
@@ -57,6 +68,8 @@ def lineup(game_id):
     root = post("/Schedule.asmx/GetLineUpAnalysis", {
         "leId": "1", "srId": "0", "seasonId": game_id[:4], "gameId": game_id,
     })
+    if root is None:
+        return {"away": [], "home": []}
     root = unwrap(root)
     if not isinstance(root, list):
         return {"away": [], "home": []}
@@ -76,9 +89,13 @@ def lineup(game_id):
 def main():
     today = date.today()
     output = []
+    failed_days = []
     for offset in range(-14, 8):
         day = today + timedelta(days=offset)
-        for obj in games_for(day):
+        games = games_for(day)
+        if not games:
+            failed_days.append(day.isoformat())
+        for obj in games:
             game_id = text(obj, "G_ID", "GAME_ID", "gameId")
             away = text(obj, "T_ID", "AWAY_ID", "AWAY_TEAM_ID")
             home = text(obj, "B_ID", "HOME_ID", "HOME_TEAM_ID")
@@ -96,7 +113,12 @@ def main():
             output.append(game)
     os.makedirs("site/data", exist_ok=True)
     with open("site/data/games.json", "w", encoding="utf-8") as file:
-        json.dump({"updatedAt": date.today().isoformat(), "games": output}, file, ensure_ascii=False)
+        json.dump({
+            "updatedAt": date.today().isoformat(),
+            "games": output,
+            "sourceStatus": "partial" if failed_days else "ok",
+            "unavailableDates": failed_days,
+        }, file, ensure_ascii=False)
 
 
 if __name__ == "__main__":
