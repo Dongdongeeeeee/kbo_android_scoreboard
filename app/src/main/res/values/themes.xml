@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.KboAlarm" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#6BE2B1</item>
+        <item name="colorPrimaryVariant">#4FB894</item>
+        <item name="colorSecondary">#8BDCFF</item>
+        <item name="android:statusBarColor">#081018</item>
+        <item name="android:navigationBarColor">#081018</item>
+    </style>
+</resources>
