@@ -1,3 +1,4 @@
+# This workflow publishes the processed KBO feed for the Android app.
 name: Publish KBO data
 
 on:
